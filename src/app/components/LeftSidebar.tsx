@@ -7,10 +7,11 @@ import logoIcon from '../../../icon.svg';
 interface LeftSidebarProps {
   activeNav: string;
   onNavChange: (nav: string) => void;
+  onExportClick: () => void;
   onImportFile: (file: File) => void;
 }
 
-export function LeftSidebar({ activeNav, onNavChange, onImportFile }: LeftSidebarProps) {
+export function LeftSidebar({ activeNav, onNavChange, onExportClick, onImportFile }: LeftSidebarProps) {
   const navItems = [
     { id: 'new', label: 'Document', subtext: 'Content & structure', icon: FileText },
     { id: 'templates', label: 'Templates', subtext: 'Layout starting points', icon: Layout },
@@ -77,13 +78,20 @@ export function LeftSidebar({ activeNav, onNavChange, onImportFile }: LeftSideba
           id="doc-import-input"
           type="file"
           className="hidden"
-          accept=".md,.markdown,.txt,.rtf,.csv,.json,.xml,.html,.htm,.yml,.yaml,text/plain,text/markdown,text/csv,application/json,application/xml,text/xml,text/html"
+          accept=".md,.markdown,.txt,.rtf,.csv,.json,.xml,.html,.htm,.yml,.yaml,.png,.jpg,.jpeg,.webp,.gif,.svg,image/*,text/plain,text/markdown,text/csv,application/json,application/xml,text/xml,text/html"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) onImportFile(file);
             e.currentTarget.value = '';
           }}
         />
+        <Button
+          onClick={onExportClick}
+          className="w-full justify-center gap-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-center"
+        >
+          <Upload className="w-4 h-4" />
+          Export PDF
+        </Button>
       </div>
     </div>
   );

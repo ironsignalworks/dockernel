@@ -4,6 +4,7 @@ import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
+import { toast } from 'sonner';
 
 export function SettingsPanel() {
   return (
@@ -114,7 +115,13 @@ export function SettingsPanel() {
                     readOnly
                     className="flex-1 px-3 py-2 rounded-lg border border-neutral-300 text-sm bg-neutral-50"
                   />
-                  <Button variant="outline" size="sm">Browse</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toast.info('Output directory selection will be added soon')}
+                  >
+                    Browse
+                  </Button>
                 </div>
               </div>
             </div>
@@ -162,7 +169,13 @@ export function SettingsPanel() {
               <div>Browser-native publishing tool</div>
               <div>Built by ironsignalworks</div>
               <div className="pt-2">
-                <Button variant="outline" size="sm">Check for Updates</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toast.success('You are on the latest version')}
+                >
+                  Check for Updates
+                </Button>
               </div>
             </div>
           </div>

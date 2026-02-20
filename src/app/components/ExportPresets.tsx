@@ -4,6 +4,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { FileDown, Settings, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { openPdfPrintPreview } from '../lib/export';
 
 interface ExportPreset {
   id: string;
@@ -45,6 +46,7 @@ const initialPresets: ExportPreset[] = [
 
 export function ExportPresets() {
   const [presets, setPresets] = useState<ExportPreset[]>(initialPresets);
+  const [activePresetId, setActivePresetId] = useState<string>(initialPresets[0]?.id ?? '');
 
   const handleSaveCurrentPreset = () => {
     const nextIndex = presets.length + 1;
@@ -56,6 +58,48 @@ export function ExportPresets() {
     };
     setPresets((prev) => [newPreset, ...prev]);
     toast.success('Preset saved');
+  };
+
+  const handleDeletePreset = (presetId: string) => {
+    setPresets((prev) => prev.filter((preset) => preset.id !== presetId));
+    toast.success('Preset removed');
+  };
+
+  const handleDuplicatePreset = (preset: ExportPreset) => {
+    const duplicate: ExportPreset = {
+      ...preset,
+      id: crypto.randomUUID(),
+      name: `${preset.name} Copy`,
+    };
+    setPresets((prev) => [duplicate, ...prev]);
+    toast.success('Preset duplicated');
+  };
+
+  const handleCopyPresetSettings = async (preset: ExportPreset) => {
+    const text = `Preset: ${preset.name}\nDPI: ${preset.settings.dpi}\nCompression: ${preset.settings.compression}\nQuality: ${preset.settings.quality}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Preset settings copied');
+    } catch {
+      toast.error('Could not copy preset settings');
+    }
+  };
+
+  const handleExportWithPreset = (preset: ExportPreset) => {
+    const quality = preset.settings.quality.toLowerCase() === 'maximum' ? 95 : preset.settings.quality.toLowerCase() === 'good' ? 75 : 60;
+    const compression = preset.settings.compression.toLowerCase() !== 'none';
+    const ok = openPdfPrintPreview('', {
+      title: preset.name,
+      quality,
+      compression,
+      includeMetadata: true,
+      watermark: false,
+    });
+    if (!ok) {
+      toast.error('Popup blocked. Allow popups to export PDF.');
+      return;
+    }
+    toast.success(`Export started with "${preset.name}"`);
   };
 
   return (
@@ -86,20 +130,44 @@ export function ExportPresets() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 mb-1">
-                    {preset.name}
-                  </h3>
+                    <h3 className="font-semibold text-neutral-900 mb-1">
+                      {preset.name}
+                    </h3>
                   <p className="text-sm text-neutral-500">{preset.description}</p>
                 </div>
 
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-8 w-8 p-0 ${activePresetId === preset.id ? 'bg-neutral-100' : ''}`}
+                    onClick={() => {
+                      setActivePresetId(preset.id);
+                      toast.success(`Selected "${preset.name}"`);
+                    }}
+                    title="Use preset"
+                    aria-label={`Use preset ${preset.name}`}
+                  >
                     <Settings className="w-4 h-4 text-neutral-500" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleDuplicatePreset(preset)}
+                    title="Duplicate preset"
+                    aria-label={`Duplicate preset ${preset.name}`}
+                  >
                     <Copy className="w-4 h-4 text-neutral-500" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleDeletePreset(preset.id)}
+                    title="Delete preset"
+                    aria-label={`Delete preset ${preset.name}`}
+                  >
                     <Trash2 className="w-4 h-4 text-neutral-500" />
                   </Button>
                 </div>
@@ -134,10 +202,26 @@ export function ExportPresets() {
               </div>
 
               {/* Actions */}
-              <Button variant="outline" size="sm" className="w-full gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => handleCopyPresetSettings(preset)}
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy settings
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => handleExportWithPreset(preset)}
+                >
                 <FileDown className="w-4 h-4" />
-                Export Final PDF
-              </Button>
+                  Export PDF
+                </Button>
+              </div>
             </Card>
           ))}
 

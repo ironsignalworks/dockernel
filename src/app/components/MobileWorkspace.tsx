@@ -463,7 +463,7 @@ export function MobileWorkspace({
         id="mobile-import-input"
         type="file"
         className="hidden"
-        accept=".md,.markdown,.txt,text/plain,text/markdown"
+        accept=".md,.markdown,.txt,.rtf,.csv,.json,.xml,.html,.htm,.yml,.yaml,.png,.jpg,.jpeg,.webp,.gif,.svg,image/*,text/plain,text/markdown,text/csv,application/json,application/xml,text/xml,text/html"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) onImportFile(file);

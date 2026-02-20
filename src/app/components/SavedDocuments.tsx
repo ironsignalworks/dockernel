@@ -3,6 +3,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Card } from './ui/card';
 import { FileText, Clock, MoreVertical } from 'lucide-react';
 import { Button } from './ui/button';
+import { toast } from 'sonner';
 
 interface Document {
   id: string;
@@ -47,6 +48,7 @@ export function SavedDocuments() {
                 <Card
                   key={doc.id}
                   className="p-6 cursor-pointer hover:shadow-lg transition-shadow border-neutral-200 hover:border-neutral-300"
+                  onClick={() => toast.success(`Opened "${doc.title}"`)}
                 >
                   {/* Preview Thumbnail */}
                   <div className="aspect-[3/4] bg-neutral-100 rounded-lg mb-4 flex items-center justify-center border border-neutral-200">
@@ -59,7 +61,15 @@ export function SavedDocuments() {
                       <h4 className="font-semibold text-neutral-900 flex-1">
                         {doc.title}
                       </h4>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 -mt-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 -mt-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast.info('Document actions menu coming soon');
+                        }}
+                      >
                         <MoreVertical className="w-4 h-4 text-neutral-500" />
                       </Button>
                     </div>

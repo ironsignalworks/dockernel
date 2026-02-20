@@ -8,6 +8,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { Download } from 'lucide-react';
 import { analyzeDocument } from '../lib/preflight';
+import { openPdfPrintPreview } from '../lib/export';
 import { toast } from 'sonner';
 
 interface ExportModalProps {
@@ -19,8 +20,13 @@ interface ExportModalProps {
 
 export function ExportModal({ open, onClose, content, onReviewLayout }: ExportModalProps) {
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+  const [quality, setQuality] = useState(85);
+  const [compression, setCompression] = useState(true);
+  const [includeMetadata, setIncludeMetadata] = useState(true);
+  const [watermark, setWatermark] = useState(false);
   const preflight = analyzeDocument(content);
   const hasMajorIssues = preflight.severity === 'major';
+  const estimatedPages = Math.max(1, Math.ceil(Math.max(content.trim().length, 1) / 1800));
 
   useEffect(() => {
     if (!open) return;
@@ -111,7 +117,7 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
                   <Label className="text-xs uppercase tracking-wide text-neutral-500">
                     Page Count
                   </Label>
-                  <div className="text-2xl font-semibold text-neutral-900">12 pages</div>
+                  <div className="text-2xl font-semibold text-neutral-900">{estimatedPages} pages</div>
                 </div>
 
                 <Separator />
@@ -124,9 +130,9 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
                   <div>
                     <div className="flex justify-between mb-2">
                       <span className="text-sm text-neutral-700">Output quality</span>
-                      <span className="text-sm text-neutral-500">High</span>
+                      <span className="text-sm text-neutral-500">{quality >= 85 ? 'High' : quality >= 60 ? 'Balanced' : 'Draft'}</span>
                     </div>
-                    <Slider defaultValue={[85]} max={100} step={5} />
+                    <Slider value={[quality]} onValueChange={(value) => setQuality(value[0] ?? 85)} max={100} step={5} />
                   </div>
                 </div>
 
@@ -138,7 +144,7 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
                       <Label className="text-sm text-neutral-700">Compression</Label>
                       <p className="mt-1 text-xs text-neutral-500">Reduce file size for sharing.</p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch checked={compression} onCheckedChange={setCompression} />
                   </div>
                 </div>
 
@@ -150,7 +156,7 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
                       <Label className="text-sm text-neutral-700">Include metadata</Label>
                       <p className="mt-1 text-xs text-neutral-500">Adds title and author info to PDF.</p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch checked={includeMetadata} onCheckedChange={setIncludeMetadata} />
                   </div>
                 </div>
 
@@ -162,7 +168,7 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
                       <Label className="text-sm text-neutral-700">Watermark</Label>
                       <p className="mt-1 text-xs text-neutral-500">Add a faint mark to each page.</p>
                     </div>
-                    <Switch />
+                    <Switch checked={watermark} onCheckedChange={setWatermark} />
                   </div>
                 </div>
               </div>
@@ -172,6 +178,20 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
               <Button
                 className="w-full gap-2 bg-neutral-900 hover:bg-neutral-800"
                 disabled={hasMajorIssues}
+                onClick={() => {
+                  const ok = openPdfPrintPreview(content, {
+                    title: 'DocKernel Export',
+                    quality,
+                    compression,
+                    includeMetadata,
+                    watermark,
+                  });
+                  if (!ok) {
+                    toast.error('Popup blocked. Allow popups to export PDF.');
+                    return;
+                  }
+                  toast.success('Print dialog opened. Choose Save as PDF.');
+                }}
               >
                 <Download className="w-4 h-4" />
                 Download PDF

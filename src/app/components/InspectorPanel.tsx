@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Label } from './ui/label';
 import { Slider } from './ui/slider';
@@ -7,10 +7,13 @@ import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
+import { toast } from 'sonner';
 
 export function InspectorPanel() {
   const [addSignature, setAddSignature] = React.useState(false);
   const [signatureFileName, setSignatureFileName] = React.useState('');
+  const [columnCount, setColumnCount] = React.useState<1 | 2>(1);
+  const [typePreset, setTypePreset] = React.useState('Editorial');
 
   return (
     <div className="h-full bg-white border-l border-neutral-200 flex flex-col">
@@ -99,8 +102,28 @@ export function InspectorPanel() {
               <Label className="text-xs uppercase tracking-wide text-neutral-500">Columns</Label>
               <p className="text-xs text-neutral-500">Split content into multiple reading columns.</p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1">1 Column</Button>
-                <Button variant="outline" size="sm" className="flex-1">2 Columns</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`flex-1 ${columnCount === 1 ? 'bg-neutral-100 border-neutral-900' : ''}`}
+                  onClick={() => {
+                    setColumnCount(1);
+                    toast.success('Columns set to 1');
+                  }}
+                >
+                  1 Column
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`flex-1 ${columnCount === 2 ? 'bg-neutral-100 border-neutral-900' : ''}`}
+                  onClick={() => {
+                    setColumnCount(2);
+                    toast.success('Columns set to 2');
+                  }}
+                >
+                  2 Columns
+                </Button>
               </div>
             </div>
 
@@ -179,10 +202,20 @@ export function InspectorPanel() {
             <div className="space-y-3">
               <Label className="text-xs uppercase tracking-wide text-neutral-500">Presets</Label>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm">Editorial</Button>
-                <Button variant="outline" size="sm">Technical</Button>
-                <Button variant="outline" size="sm">Compact</Button>
-                <Button variant="outline" size="sm">Resume</Button>
+                {['Editorial', 'Technical', 'Compact', 'Resume'].map((preset) => (
+                  <Button
+                    key={preset}
+                    variant="outline"
+                    size="sm"
+                    className={typePreset === preset ? 'bg-neutral-100 border-neutral-900' : ''}
+                    onClick={() => {
+                      setTypePreset(preset);
+                      toast.success(`${preset} preset applied`);
+                    }}
+                  >
+                    {preset}
+                  </Button>
+                ))}
               </div>
             </div>
           </TabsContent>
@@ -242,7 +275,7 @@ export function InspectorPanel() {
                       size="sm"
                       onClick={() => document.getElementById('signature-import-input')?.click()}
                     >
-                      <Upload className="w-4 h-4" />
+                      <Download className="w-4 h-4" />
                       Import signature
                     </Button>
                     {signatureFileName && (

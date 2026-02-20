@@ -23,6 +23,7 @@ import { SavedDocuments } from './SavedDocuments';
 import { SettingsPanel } from './SettingsPanel';
 import { TemplateGrid } from './TemplateGrid';
 import { analyzeDocument } from '../lib/preflight';
+import { toast } from 'sonner';
 
 type TabletMode = 'edit' | 'preview' | 'layout' | 'export';
 type UtilityView = 'none' | 'templates' | 'saved' | 'settings';
@@ -66,6 +67,7 @@ export function TabletWorkspace({
   const [landscapeSheet, setLandscapeSheet] = React.useState<LandscapeSheet>('none');
   const [landscapeFocus, setLandscapeFocus] = React.useState<LandscapeFocus>('split');
   const [activePreviewPage, setActivePreviewPage] = React.useState<number | null>(null);
+  const [landscapeFormat, setLandscapeFormat] = React.useState<'Book' | 'Zine' | 'Catalogue' | 'Report'>('Book');
   const headings = React.useMemo(
     () =>
       content
@@ -251,7 +253,19 @@ export function TabletWorkspace({
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {[1, 2, 3, 4].map((n) => (
-                <button key={n} type="button" className="h-14 w-12 shrink-0 rounded-md border border-neutral-300 bg-white text-xs text-neutral-600">
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    setActivePreviewPage(n);
+                    toast.info(`Jumped to page ${n}`);
+                  }}
+                  className={`h-14 w-12 shrink-0 rounded-md border text-xs transition-colors ${
+                    activePreviewPage === n
+                      ? 'border-neutral-900 bg-neutral-100 text-neutral-900'
+                      : 'border-neutral-300 bg-white text-neutral-600'
+                  }`}
+                >
                   {n}
                 </button>
               ))}
@@ -361,7 +375,7 @@ export function TabletWorkspace({
             ))}
           </div>
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">Estimated file size: 1.8 MB</div>
-          <Button className="w-full bg-neutral-900 hover:bg-neutral-800">
+          <Button className="w-full bg-neutral-900 hover:bg-neutral-800" onClick={onOpenExport}>
             <Download className="h-4 w-4" />
             Download PDF
           </Button>
@@ -385,12 +399,18 @@ export function TabletWorkspace({
           ) : (
             <div className="space-y-2">
               {preflight.issues.map((issue) => (
-                <button key={issue.id} type="button" className="w-full rounded-md border border-neutral-200 bg-white p-3 text-left">
+                <button
+                  key={issue.id}
+                  type="button"
+                  disabled
+                  title="Jump links coming soon"
+                  className="w-full rounded-md border border-neutral-200 bg-white p-3 text-left opacity-70 cursor-not-allowed"
+                >
                   <div className="flex items-center gap-2 text-sm font-medium text-neutral-800">
                     <AlertTriangle className="h-4 w-4 text-amber-600" />
                     {issue.title}
                   </div>
-                  <p className="mt-1 text-xs text-neutral-600">{issue.text}</p>
+                  <p className="mt-1 text-xs text-neutral-600">{issue.text} Jump links coming soon.</p>
                 </button>
               ))}
             </div>
@@ -405,8 +425,19 @@ export function TabletWorkspace({
         <div className="space-y-3">
           <label className="text-xs uppercase tracking-wide text-neutral-500">Format</label>
           <div className="grid grid-cols-2 gap-2">
-            {['Book', 'Zine', 'Catalogue', 'Report'].map((f) => (
-              <Button key={f} variant="outline" size="sm">{f}</Button>
+            {(['Book', 'Zine', 'Catalogue', 'Report'] as const).map((f) => (
+              <Button
+                key={f}
+                variant="outline"
+                size="sm"
+                className={landscapeFormat === f ? 'bg-neutral-100 border-neutral-900' : ''}
+                onClick={() => {
+                  setLandscapeFormat(f);
+                  toast.success(`Format set to ${f}`);
+                }}
+              >
+                {f}
+              </Button>
             ))}
           </div>
         </div>
@@ -525,7 +556,7 @@ export function TabletWorkspace({
         id="tablet-import-input"
         type="file"
         className="hidden"
-        accept=".md,.markdown,.txt,text/plain,text/markdown"
+        accept=".md,.markdown,.txt,.rtf,.csv,.json,.xml,.html,.htm,.yml,.yaml,.png,.jpg,.jpeg,.webp,.gif,.svg,image/*,text/plain,text/markdown,text/csv,application/json,application/xml,text/xml,text/html"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) onImportFile(file);
