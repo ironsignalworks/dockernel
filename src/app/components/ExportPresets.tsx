@@ -44,7 +44,11 @@ const initialPresets: ExportPreset[] = [
   },
 ];
 
-export function ExportPresets() {
+interface ExportPresetsProps {
+  content: string;
+}
+
+export function ExportPresets({ content }: ExportPresetsProps) {
   const [presets, setPresets] = useState<ExportPreset[]>(initialPresets);
   const [activePresetId, setActivePresetId] = useState<string>(initialPresets[0]?.id ?? '');
 
@@ -85,10 +89,10 @@ export function ExportPresets() {
     }
   };
 
-  const handleExportWithPreset = (preset: ExportPreset) => {
+  const handleExportWithPreset = (preset: ExportPreset, content: string) => {
     const quality = preset.settings.quality.toLowerCase() === 'maximum' ? 95 : preset.settings.quality.toLowerCase() === 'good' ? 75 : 60;
     const compression = preset.settings.compression.toLowerCase() !== 'none';
-    const ok = openPdfPrintPreview('', {
+    const ok = openPdfPrintPreview(content, {
       title: preset.name,
       quality,
       compression,
@@ -216,7 +220,7 @@ export function ExportPresets() {
                   variant="outline"
                   size="sm"
                   className="w-full gap-2"
-                  onClick={() => handleExportWithPreset(preset)}
+                    onClick={() => handleExportWithPreset(preset, content)}
                 >
                 <FileDown className="w-4 h-4" />
                   Export PDF

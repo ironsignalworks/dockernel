@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { SavedDocuments } from './SavedDocuments';
 import { SettingsPanel } from './SettingsPanel';
 import { TemplateGrid } from './TemplateGrid';
+import { markdownUrlTransform } from '../lib/markdown';
 
 type MobileMode = 'edit' | 'preview' | 'layout';
 type UtilityView = 'none' | 'templates' | 'saved' | 'settings';
@@ -157,7 +158,7 @@ export function MobileWorkspace({
             >
               <div className="prose prose-sm max-w-none text-neutral-700">
                 {hasContent ? (
-                  <ReactMarkdown>{content}</ReactMarkdown>
+                  <ReactMarkdown urlTransform={markdownUrlTransform}>{content}</ReactMarkdown>
                 ) : (
                   <div className="space-y-2 text-center text-sm text-neutral-500">
                     <h3 className="text-base font-semibold text-neutral-800">Preview will appear here</h3>

@@ -6,6 +6,13 @@ export interface ExportOptions {
   watermark: boolean;
 }
 
+export interface ExportSharePayload {
+  title: string;
+  content: string;
+  options: ExportOptions;
+  createdAt: string;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -110,4 +117,51 @@ export function openPdfPrintPreview(content: string, options: ExportOptions): bo
   }, 250);
 
   return true;
+}
+
+function encodeBase64Url(value: string): string {
+  const utf8Bytes = new TextEncoder().encode(value);
+  let binary = '';
+  utf8Bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  const base64 = btoa(binary);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function decodeBase64Url(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padLength = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + '='.repeat(padLength);
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+export function buildExportShareUrl(payload: ExportSharePayload): string | null {
+  try {
+    const url = new URL(window.location.href);
+    const encoded = encodeBase64Url(JSON.stringify(payload));
+    url.searchParams.set('view', 'pdf');
+    url.searchParams.set('share', encoded);
+    const output = url.toString();
+    if (output.length > 7000) return null;
+    return output;
+  } catch {
+    return null;
+  }
+}
+
+export function readExportSharePayloadFromLocation(): ExportSharePayload | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') !== 'pdf') return null;
+    const share = params.get('share');
+    if (!share) return null;
+    const parsed = JSON.parse(decodeBase64Url(share)) as ExportSharePayload;
+    if (!parsed || typeof parsed.content !== 'string' || typeof parsed.title !== 'string') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }

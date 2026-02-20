@@ -1,7 +1,6 @@
 import React from 'react';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
-import { splitContentIntoPages } from '../lib/paging';
 
 interface EditorPanelProps {
   content: string;
@@ -9,6 +8,7 @@ interface EditorPanelProps {
   isDocumentLoaded: boolean;
   onNewDocument: () => void;
   onImportFile: (file: File) => void;
+  editorFontSize?: number;
 }
 
 export function EditorPanel({
@@ -17,20 +17,10 @@ export function EditorPanel({
   isDocumentLoaded,
   onNewDocument,
   onImportFile,
+  editorFontSize = 14,
 }: EditorPanelProps) {
   const isEmpty = content.trim().length === 0;
   const [hasInteractedWithEditor, setHasInteractedWithEditor] = React.useState(false);
-  const pages = React.useMemo(() => splitContentIntoPages(content, 1800), [content]);
-
-  const updatePageContent = (pageIndex: number, value: string) => {
-    const nextPages = [...pages];
-    nextPages[pageIndex] = value;
-    const nextContent = nextPages
-      .map((page) => page.trim())
-      .filter((page) => page.length > 0)
-      .join('\n\n');
-    onChange(nextContent);
-  };
 
   return (
     <div className="h-full bg-neutral-100 flex flex-col">
@@ -85,26 +75,19 @@ export function EditorPanel({
             </div>
           )}
 
-          <div className="space-y-6">
-            {pages.map((pageContent, pageIndex) => (
-              <div
-                key={`editor-page-${pageIndex}`}
-                className="mx-auto w-full max-w-[820px] rounded-lg border border-neutral-200 bg-white shadow-sm"
-              >
-                <div className="border-b border-neutral-100 px-6 py-2 text-xs uppercase tracking-wide text-neutral-400">
-                  Page {pageIndex + 1}
-                </div>
-                <textarea
-                  value={pageContent}
-                  onChange={(e) => updatePageContent(pageIndex, e.target.value)}
-                  onFocus={() => setHasInteractedWithEditor(true)}
-                  onClick={() => setHasInteractedWithEditor(true)}
-                  className="w-full min-h-[1040px] resize-none border-none bg-transparent px-10 py-10 font-mono text-sm leading-relaxed text-neutral-900 outline-none"
-                  placeholder={pageIndex === 0 ? 'Start typing or import a file to begin.' : ''}
-                  style={{ fontFamily: 'JetBrains Mono, monospace' }}
-                />
-              </div>
-            ))}
+          <div className="mx-auto w-full max-w-[820px] rounded-lg border border-neutral-200 bg-white shadow-sm">
+            <div className="border-b border-neutral-100 px-6 py-2 text-xs uppercase tracking-wide text-neutral-400">
+              Document
+            </div>
+            <textarea
+              value={content}
+              onChange={(e) => onChange(e.target.value)}
+              onFocus={() => setHasInteractedWithEditor(true)}
+              onClick={() => setHasInteractedWithEditor(true)}
+              className="w-full min-h-[1040px] resize-y border-none bg-transparent px-10 py-10 font-mono text-sm leading-relaxed text-neutral-900 outline-none"
+              placeholder="Start typing or import a file to begin."
+              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: `${editorFontSize}px` }}
+            />
           </div>
         </div>
       </ScrollArea>

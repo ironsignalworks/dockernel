@@ -18,6 +18,10 @@ interface TopBarProps {
   documentName: string;
   onDocumentNameChange: (value: string) => void;
   onExportClick: () => void;
+  pageSize: 'a4' | 'a5' | 'letter' | 'legal';
+  onPageSizeChange: (value: 'a4' | 'a5' | 'letter' | 'legal') => void;
+  searchQuery: string;
+  onSearchQueryChange: (value: string) => void;
 }
 
 export function TopBar({
@@ -28,6 +32,10 @@ export function TopBar({
   documentName,
   onDocumentNameChange,
   onExportClick,
+  pageSize,
+  onPageSizeChange,
+  searchQuery,
+  onSearchQueryChange,
 }: TopBarProps) {
   return (
     <header className="bg-white border-b border-neutral-200 px-4 lg:px-6 py-3 overflow-x-hidden">
@@ -48,35 +56,14 @@ export function TopBar({
             value={documentName}
             onChange={(e) => onDocumentNameChange(e.target.value)}
             placeholder="Untitled Document"
-            title="Name your document. This will be used for export."
+            title="Name your document."
             className="h-10 bg-white"
           />
         </div>
 
-        <div className="hidden lg:block w-[220px] shrink-0">
-          <Select defaultValue="book">
-            <SelectTrigger
-              title="Templates control page structure, spacing, and numbering."
-              className="h-10 bg-white"
-            >
-              <SelectValue placeholder="Template" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="book">Book layout</SelectItem>
-              <SelectItem value="zine">Zine layout</SelectItem>
-              <SelectItem value="catalogue">Catalogue grid</SelectItem>
-              <SelectItem value="report">Report format</SelectItem>
-              <SelectItem value="custom">Custom layout</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         <div className="hidden lg:block w-[130px] shrink-0">
-          <Select defaultValue="a4">
-            <SelectTrigger
-              title="Changes document dimensions and reflows content automatically."
-              className="h-10 bg-white"
-            >
+          <Select value={pageSize} onValueChange={(value) => onPageSizeChange(value as TopBarProps['pageSize'])}>
+            <SelectTrigger title="Page size" className="h-10 bg-white">
               <SelectValue placeholder="Page size" />
             </SelectTrigger>
             <SelectContent>
@@ -90,11 +77,7 @@ export function TopBar({
 
         <div className="hidden md:block relative w-[220px] lg:w-[300px] shrink-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-          <Input
-            type="text"
-            placeholder="Search document..."
-            className="h-10 bg-white pl-9"
-          />
+          <Input type="text" value={searchQuery} onChange={(e) => onSearchQueryChange(e.target.value)} placeholder="Search document..." className="h-10 bg-white pl-9" />
         </div>
 
         <Button
@@ -108,10 +91,7 @@ export function TopBar({
           {isStackedLayout ? 'Split panels' : 'Stacked panels'}
         </Button>
 
-        <Button
-          onClick={onExportClick}
-          className="inline-flex h-10 shrink-0 gap-2 bg-neutral-900 hover:bg-neutral-800"
-        >
+        <Button onClick={onExportClick} className="inline-flex h-10 shrink-0 gap-2 bg-neutral-900 hover:bg-neutral-800">
           <Upload className="w-4 h-4" />
           Export PDF
         </Button>

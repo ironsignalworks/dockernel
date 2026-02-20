@@ -12,27 +12,27 @@ export function NewDocumentView({ onStartBlank, onOpenTemplates }: NewDocumentVi
   const [step, setStep] = useState(0);
   const onboardingSteps = [
     {
-      label: 'STEP 1 — Editor',
+      label: 'STEP 1 - Editor',
       title: 'Write or import content',
       text: 'DocKernel formats Markdown and plain text into structured pages as you type.',
     },
     {
-      label: 'STEP 2 — Preview',
+      label: 'STEP 2 - Preview',
       title: 'Live layout preview',
       text: 'This view shows exactly how your document will appear when exported.',
     },
     {
-      label: 'STEP 3 — Paginator',
-      title: 'Control page flow',
-      text: 'Use Paginator to switch between book, zine, or catalogue formats and adjust layout rules.',
+      label: 'STEP 3 - Layout',
+      title: 'Adjust page setup',
+      text: 'Tune page structure and formatting in Layout and Inspector controls.',
     },
     {
-      label: 'STEP 4 — Templates',
+      label: 'STEP 4 - Templates',
       title: 'Try different layouts',
       text: 'Templates instantly reflow your document into new formats without changing the content.',
     },
     {
-      label: 'STEP 5 — Export',
+      label: 'STEP 5 - Export',
       title: 'Finalize output',
       text: 'Open the export preview to download a print-ready PDF that matches the layout exactly.',
     },
@@ -46,8 +46,8 @@ export function NewDocumentView({ onStartBlank, onOpenTemplates }: NewDocumentVi
     },
     {
       icon: <Layout className="w-6 h-6" />,
-      title: 'Smart Pagination',
-      description: 'Automatically reflow content into multiple formats',
+      title: 'Page Layout Tools',
+      description: 'Adjust structure and spacing for print-ready output',
     },
     {
       icon: <Zap className="w-6 h-6" />,
@@ -66,29 +66,27 @@ export function NewDocumentView({ onStartBlank, onOpenTemplates }: NewDocumentVi
       <div className="h-full overflow-y-auto overflow-x-hidden">
         <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center min-h-full flex flex-col justify-center">
           <div className="w-full max-w-2xl mx-auto">
-            {/* Hero Section */}
             <div className="mb-12 px-1 sm:px-0">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-neutral-900 mb-4 leading-tight break-words [overflow-wrap:anywhere]">
                 Welcome to DocKernel
               </h1>
               <p className="text-base sm:text-lg text-neutral-600 break-words [overflow-wrap:anywhere]">
-                A browser-native publishing tool that transforms Markdown and plain text 
+                A browser-native publishing tool that transforms Markdown and plain text
                 into structured documents and PDFs
               </p>
             </div>
 
-            {/* Quick Actions */}
             <div className="flex flex-col md:flex-row gap-3 md:gap-4 justify-center items-stretch md:items-center mb-12 sm:mb-16">
-              <Button 
+              <Button
                 onClick={onStartBlank}
-                size="lg" 
+                size="lg"
                 className="bg-neutral-900 hover:bg-neutral-800 px-8 w-full md:w-auto"
               >
                 Start from Blank
               </Button>
-              <Button 
+              <Button
                 onClick={onOpenTemplates}
-                variant="outline" 
+                variant="outline"
                 size="lg"
                 className="px-8 w-full md:w-auto"
               >
@@ -136,7 +134,6 @@ export function NewDocumentView({ onStartBlank, onOpenTemplates }: NewDocumentVi
             </Card>
           </div>
 
-          {/* Features Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {features.map((feature, index) => (
               <Card
@@ -156,7 +153,6 @@ export function NewDocumentView({ onStartBlank, onOpenTemplates }: NewDocumentVi
             ))}
           </div>
 
-          {/* Footer Info */}
           <div className="mt-16 pt-8 border-t border-neutral-200">
             <p className="text-sm text-neutral-500">
               All processing happens locally in your browser. Your documents stay private.

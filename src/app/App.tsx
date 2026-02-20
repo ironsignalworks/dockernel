@@ -1,21 +1,22 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LeftSidebar } from './components/LeftSidebar';
 import { TopBar } from './components/TopBar';
 import { EditorPanel } from './components/EditorPanel';
 import { PreviewPanel } from './components/PreviewPanel';
-import { InspectorPanel } from './components/InspectorPanel';
-import { PaginatorPanel, type PaginatorAsset } from './components/PaginatorPanel';
+import { InspectorPanel, type InspectorSettings } from './components/InspectorPanel';
 import { ExportModal } from './components/ExportModal';
-import { TemplateGrid } from './components/TemplateGrid';
-import { SavedDocuments } from './components/SavedDocuments';
-import { SettingsPanel } from './components/SettingsPanel';
+import { TemplateGrid, type TemplateDefinition, type TemplateId } from './components/TemplateGrid';
+import { SavedDocuments, type SavedDocumentRecord } from './components/SavedDocuments';
+import { SettingsPanel, type WorkspaceSettings } from './components/SettingsPanel';
 import { ExportPresets } from './components/ExportPresets';
 import { NewDocumentView } from './components/NewDocumentView';
 import { AboutPage } from './components/AboutPage';
 import { MobileWorkspace } from './components/MobileWorkspace';
 import { TabletWorkspace } from './components/TabletWorkspace';
+import { ExportShareView } from './components/ExportShareView';
 import { Toaster } from './components/ui/sonner';
-import { PAGE_BREAK_TOKEN } from './lib/paging';
+import { PAGE_BREAK_TOKEN, splitContentIntoPages } from './lib/paging';
+import { readExportSharePayloadFromLocation } from './lib/export';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -24,6 +25,42 @@ import {
 import { toast } from 'sonner';
 
 const defaultMarkdown = '';
+
+const STORAGE_KEYS = {
+  savedDocs: 'dockernel_saved_documents',
+  workspaceSettings: 'dockernel_workspace_settings',
+  inspectorSettings: 'dockernel_inspector_settings',
+} as const;
+
+const defaultWorkspaceSettings: WorkspaceSettings = {
+  autoSave: true,
+  editorFontSize: 14,
+  defaultTemplate: 'book',
+  defaultPageSize: 'a4',
+  theme: 'light',
+  uiScale: 'medium',
+};
+
+const defaultInspectorSettings: InspectorSettings = {
+  margins: { top: 25, bottom: 25, left: 20, right: 20 },
+  columns: 1,
+  sectionGap: 24,
+  paragraphGap: 12,
+  primaryFont: 'Inter',
+  headingScale: 15,
+  bodyRhythm: 16,
+  typePreset: 'Editorial',
+  headerContent: '',
+  footerContent: '',
+  addSignature: false,
+  signatureLabel: 'Approved by',
+  signatureFileName: '',
+  numberingFormat: 'bottom-center',
+  exportQuality: 80,
+  compression: true,
+  watermark: false,
+  includeMetadata: true,
+};
 
 export default function App() {
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
@@ -36,14 +73,19 @@ export default function App() {
   const [isStackedLayout, setIsStackedLayout] = useState(false);
   const [stackedWorkspaceTab, setStackedWorkspaceTab] = useState<'editor' | 'preview' | 'inspector'>('preview');
   const [layoutFormat, setLayoutFormat] = useState<'zine' | 'book' | 'catalogue' | 'report' | 'custom'>('zine');
-  const [fullBookPreview, setFullBookPreview] = useState(false);
-  const [previewPageCount, setPreviewPageCount] = useState(12);
-  const [activePresetName, setActivePresetName] = useState('Default');
-  const [paginatorAssets, setPaginatorAssets] = useState<Array<PaginatorAsset & { objectUrl?: string; textContent?: string }>>([]);
-  const [compiledPaginatorPreview, setCompiledPaginatorPreview] = useState('');
+  const [pageSize, setPageSize] = useState<'a4' | 'a5' | 'letter' | 'legal'>('a4');
+  const [fullBookPreview] = useState(false);
+  const [previewPageCount] = useState(12);
+  const [activePresetName] = useState('Default');
+  const [searchQuery, setSearchQuery] = useState('');
   const [importedImageUrls, setImportedImageUrls] = useState<string[]>([]);
-  const paginatorAssetsRef = useRef<Array<PaginatorAsset & { objectUrl?: string; textContent?: string }>>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId | null>(null);
+  const [savedDocuments, setSavedDocuments] = useState<SavedDocumentRecord[]>([]);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(defaultWorkspaceSettings);
+  const [inspectorSettings, setInspectorSettings] = useState<InspectorSettings>(defaultInspectorSettings);
   const importedImageUrlsRef = useRef<string[]>([]);
+  const sharePayload = readExportSharePayloadFromLocation();
 
   const isPhone = viewport.width < 768;
   const isTabletPortrait = viewport.width >= 768 && viewport.width < 1024;
@@ -63,7 +105,118 @@ export default function App() {
   useEffect(() => {
     setIsSidebarOpen(isDesktopLayout);
   }, [isDesktopLayout]);
+
+  useEffect(() => {
+    try {
+      const rawDocs = localStorage.getItem(STORAGE_KEYS.savedDocs);
+      if (rawDocs) {
+        const parsed = JSON.parse(rawDocs) as SavedDocumentRecord[];
+        if (Array.isArray(parsed)) setSavedDocuments(parsed);
+      }
+      const rawWorkspace = localStorage.getItem(STORAGE_KEYS.workspaceSettings);
+      if (rawWorkspace) {
+        const parsed = JSON.parse(rawWorkspace) as WorkspaceSettings;
+        setWorkspaceSettings({ ...defaultWorkspaceSettings, ...parsed });
+      }
+      const rawInspector = localStorage.getItem(STORAGE_KEYS.inspectorSettings);
+      if (rawInspector) {
+        const parsed = JSON.parse(rawInspector) as InspectorSettings;
+        setInspectorSettings({ ...defaultInspectorSettings, ...parsed });
+      }
+    } catch {
+      // local cache hydration is best effort
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.savedDocs, JSON.stringify(savedDocuments));
+  }, [savedDocuments]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.workspaceSettings, JSON.stringify(workspaceSettings));
+  }, [workspaceSettings]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.inspectorSettings, JSON.stringify(inspectorSettings));
+  }, [inspectorSettings]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = workspaceSettings.theme;
+    document.documentElement.dataset.uiScale = workspaceSettings.uiScale;
+  }, [workspaceSettings.theme, workspaceSettings.uiScale]);
+
   const isDocumentLoaded = showEditor || content.trim().length > 0 || documentName.trim().length > 0;
+
+  const saveDocumentSnapshot = (id: string | null, nextTitle: string, nextContent: string) => {
+    const title = nextTitle.trim() || 'Untitled Document';
+    const pageCount = splitContentIntoPages(nextContent, 1800).length;
+    const now = new Date().toISOString();
+    if (id) {
+      setSavedDocuments((prev) => prev.map((doc) => (doc.id === id ? { ...doc, title, content: nextContent, pageCount, updatedAt: now } : doc)));
+      return id;
+    }
+
+    const createdId = crypto.randomUUID();
+    setSavedDocuments((prev) => [{ id: createdId, title, content: nextContent, pageCount, updatedAt: now }, ...prev]);
+    return createdId;
+  };
+
+  useEffect(() => {
+    if (!workspaceSettings.autoSave) return;
+    if (!showEditor && content.trim().length === 0 && documentName.trim().length === 0) return;
+
+    const timer = window.setTimeout(() => {
+      const savedId = saveDocumentSnapshot(activeDocumentId, documentName, content);
+      if (!activeDocumentId) setActiveDocumentId(savedId);
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [activeDocumentId, content, documentName, showEditor, workspaceSettings.autoSave]);
+
+  const handleOpenSavedDocument = (id: string) => {
+    const record = savedDocuments.find((doc) => doc.id === id);
+    if (!record) return;
+    setActiveDocumentId(record.id);
+    setDocumentName(record.title);
+    setContent(record.content);
+    setShowEditor(true);
+    setActiveNav('new');
+    toast.success(`Opened "${record.title}"`);
+  };
+
+  const handleDuplicateSavedDocument = (id: string) => {
+    const record = savedDocuments.find((doc) => doc.id === id);
+    if (!record) return;
+    const clone: SavedDocumentRecord = {
+      ...record,
+      id: crypto.randomUUID(),
+      title: `${record.title} Copy`,
+      updatedAt: new Date().toISOString(),
+    };
+    setSavedDocuments((prev) => [clone, ...prev]);
+    toast.success('Document duplicated');
+  };
+
+  const handleDeleteSavedDocument = (id: string) => {
+    setSavedDocuments((prev) => prev.filter((doc) => doc.id !== id));
+    if (activeDocumentId === id) {
+      setActiveDocumentId(null);
+      setDocumentName('');
+      setContent('');
+      setShowEditor(false);
+    }
+    toast.success('Document removed');
+  };
+
+  const handleTemplateSelect = (template: TemplateDefinition) => {
+    setSelectedTemplateId(template.id);
+    setLayoutFormat(template.category === 'catalogue' ? 'catalogue' : template.category === 'book' ? 'book' : 'zine');
+    if (content.trim().length === 0) {
+      setContent(template.starterContent);
+    }
+    setShowEditor(true);
+    setActiveNav('new');
+  };
 
   const handleImportFile = async (file: File) => {
     const maxSizeBytes = 2 * 1024 * 1024;
@@ -108,124 +261,14 @@ export default function App() {
         const importedText = await file.text();
         setContent(importedText);
       }
+      setActiveDocumentId(null);
       setShowEditor(true);
-      setActiveNav('paginator');
+      setActiveNav('new');
       toast.success(`Imported ${file.name}`);
     } catch {
       toast.error('Could not read that file.');
     }
   };
-
-  const formatBytes = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const buildCompiledPaginatorPreview = useCallback(() => {
-    const title = documentName.trim() || 'Compiled Document';
-    const assets = paginatorAssets;
-    const textAssets = assets.filter((asset) => asset.kind === 'text');
-    const imageAssets = assets.filter((asset) => asset.kind === 'image');
-    const otherAssets = assets.filter((asset) => asset.kind === 'other');
-
-    if (assets.length === 0) {
-      setCompiledPaginatorPreview(content);
-      return;
-    }
-
-    if (layoutFormat === 'catalogue') {
-      const catalogueBlocks = imageAssets.length > 0
-        ? imageAssets
-            .map((asset, index) =>
-              `${asset.objectUrl ? `![${asset.name}](${asset.objectUrl})\n\n${PAGE_BREAK_TOKEN}` : ''}\n\n### Item ${index + 1}: ${asset.name}\n\n- SKU: CAT-${String(index + 1).padStart(3, '0')}\n- Price: $${(index + 1) * 19}`,
-            )
-            .join('\n\n')
-        : 'No image assets loaded yet.';
-
-      const compiled = `# ${title}\n\n## Catalogue Layout\n\n${catalogueBlocks}`;
-      setCompiledPaginatorPreview(compiled);
-      return;
-    }
-
-    const textSection = textAssets.length > 0
-      ? textAssets.map((asset, idx) => `## Section ${idx + 1}: ${asset.name}\n\n${asset.textContent ?? ''}`).join('\n\n')
-      : content;
-    const imageSection = imageAssets.length > 0
-      ? `\n\n## Visual Assets\n\n${imageAssets
-          .map((asset) => `### ${asset.name}\n\n${asset.objectUrl ? `![${asset.name}](${asset.objectUrl})\n\n${PAGE_BREAK_TOKEN}` : ''}`)
-          .join('\n\n')}`
-      : '';
-    const attachmentSection = otherAssets.length > 0
-      ? `\n\n## Attachments\n\n${otherAssets.map((asset) => `- ${asset.name} (${asset.sizeLabel})`).join('\n')}`
-      : '';
-
-    const headerByFormat: Record<'zine' | 'book' | 'report' | 'custom', string> = {
-      zine: '## Zine Structure',
-      book: '## Book Manuscript',
-      report: '## Report Body',
-      custom: '## Custom Template',
-    };
-    const formatKey = layoutFormat === 'catalogue' ? 'custom' : layoutFormat;
-    const compiled = `# ${title}\n\n${headerByFormat[formatKey]}\n\n${textSection}${imageSection}${attachmentSection}`;
-    setCompiledPaginatorPreview(compiled);
-  }, [content, documentName, layoutFormat, paginatorAssets]);
-
-  const handlePaginatorAssetImport = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-
-    const files = Array.from(fileList);
-    const nextAssets = await Promise.all(
-      files.map(async (file) => {
-        const lower = file.name.toLowerCase();
-        const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/.test(lower);
-        const isText = /\.(md|markdown|txt|csv|json|xml|html|htm|yml|yaml)$/.test(lower) || file.type.startsWith('text/');
-
-        if (isImage) {
-          return {
-            id: crypto.randomUUID(),
-            name: file.name,
-            kind: 'image' as const,
-            sizeLabel: formatBytes(file.size),
-            objectUrl: URL.createObjectURL(file),
-          };
-        }
-
-        if (isText) {
-          const text = await file.text();
-          return {
-            id: crypto.randomUUID(),
-            name: file.name,
-            kind: 'text' as const,
-            sizeLabel: formatBytes(file.size),
-            textContent: text.slice(0, 12000),
-          };
-        }
-
-        return {
-          id: crypto.randomUUID(),
-          name: file.name,
-          kind: 'other' as const,
-          sizeLabel: formatBytes(file.size),
-        };
-      }),
-    );
-
-    setPaginatorAssets((prev) => [...prev, ...nextAssets]);
-    toast.success(`Loaded ${nextAssets.length} file${nextAssets.length > 1 ? 's' : ''} for pagination`);
-  };
-
-  const removePaginatorAsset = (assetId: string) => {
-    setPaginatorAssets((prev) => {
-      const target = prev.find((asset) => asset.id === assetId);
-      if (target?.objectUrl) URL.revokeObjectURL(target.objectUrl);
-      return prev.filter((asset) => asset.id !== assetId);
-    });
-  };
-
-  useEffect(() => {
-    paginatorAssetsRef.current = paginatorAssets;
-  }, [paginatorAssets]);
 
   useEffect(() => {
     importedImageUrlsRef.current = importedImageUrls;
@@ -233,27 +276,33 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      paginatorAssetsRef.current.forEach((asset) => {
-        if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
-      });
       importedImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
-  useEffect(() => {
-    if (compiledPaginatorPreview.length === 0) return;
-    buildCompiledPaginatorPreview();
-  }, [buildCompiledPaginatorPreview, compiledPaginatorPreview.length]);
+  const clearAndStartNewDocument = () => {
+    setShowEditor(true);
+    setDocumentName('');
+    setContent('');
+    setActiveDocumentId(null);
+  };
+
+  const filteredContent =
+    searchQuery.trim().length === 0
+      ? content
+      : content
+          .split('\n')
+          .filter((line) => line.toLowerCase().includes(searchQuery.toLowerCase()))
+          .join('\n');
 
   const renderMainContent = () => {
     const useStackedPanels = isStackedLayout;
 
-    // Show new document welcome view
     if (activeNav === 'new' && !showEditor) {
       return (
         <NewDocumentView
           onStartBlank={() => {
-            setShowEditor(true);
+            clearAndStartNewDocument();
             setStackedWorkspaceTab('editor');
           }}
           onOpenTemplates={() => setActiveNav('templates')}
@@ -261,121 +310,33 @@ export default function App() {
       );
     }
 
-    // Show template grid
     if (activeNav === 'templates') {
-      return <TemplateGrid />;
+      return <TemplateGrid selectedTemplateId={selectedTemplateId} onSelectTemplate={handleTemplateSelect} />;
     }
 
-    // Show saved documents
     if (activeNav === 'saved') {
-      return <SavedDocuments />;
+      return (
+        <SavedDocuments
+          documents={savedDocuments}
+          onOpenDocument={handleOpenSavedDocument}
+          onDuplicateDocument={handleDuplicateSavedDocument}
+          onDeleteDocument={handleDeleteSavedDocument}
+        />
+      );
     }
 
-    // Show settings
     if (activeNav === 'settings') {
-      return <SettingsPanel />;
+      return <SettingsPanel settings={workspaceSettings} onChange={setWorkspaceSettings} />;
     }
 
-    // Show about
     if (activeNav === 'about') {
       return <AboutPage />;
     }
 
-    // Show export presets
     if (activeNav === 'export') {
-      return <ExportPresets />;
+      return <ExportPresets content={content} />;
     }
 
-    // Show paginator panel
-    if (activeNav === 'paginator') {
-      const previewContent = compiledPaginatorPreview || content;
-      if (useStackedPanels) {
-        return (
-          <div className="h-full min-h-0 flex flex-col">
-            <div className="border-b border-neutral-200 bg-white p-2 flex gap-2">
-              <button
-                type="button"
-                className={`h-8 px-3 text-xs rounded-md border shadow-sm ${
-                  stackedWorkspaceTab === 'editor' ? 'border-neutral-900 bg-neutral-100 text-neutral-900' : 'border-neutral-300 text-neutral-600'
-                }`}
-                onClick={() => setStackedWorkspaceTab('editor')}
-              >
-                Paginator
-              </button>
-              <button
-                type="button"
-                className={`h-8 px-3 text-xs rounded-md border shadow-sm ${
-                  stackedWorkspaceTab === 'preview' ? 'border-neutral-900 bg-neutral-100 text-neutral-900' : 'border-neutral-300 text-neutral-600'
-                }`}
-                onClick={() => setStackedWorkspaceTab('preview')}
-              >
-                Preview
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {stackedWorkspaceTab === 'preview' ? (
-                <PreviewPanel
-                  content={previewContent}
-                  layoutFormat={layoutFormat}
-                  fullBookPreview={fullBookPreview}
-                  previewPageCount={previewPageCount}
-                  activePresetName={activePresetName}
-                />
-              ) : (
-                <PaginatorPanel
-                  content={content}
-                  selectedFormat={layoutFormat}
-                  onFormatChange={setLayoutFormat}
-                  fullBookPreview={fullBookPreview}
-                  onFullBookPreviewChange={setFullBookPreview}
-                  previewPageCount={previewPageCount}
-                  onPreviewPageCountChange={setPreviewPageCount}
-                  activePresetName={activePresetName}
-                  onActivePresetNameChange={setActivePresetName}
-                  assets={paginatorAssets}
-                  onImportAssets={handlePaginatorAssetImport}
-                  onRemoveAsset={removePaginatorAsset}
-                  onCompilePreview={buildCompiledPaginatorPreview}
-                />
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      return (
-        <div className="flex h-full min-h-0">
-          <div className="w-[38%] min-w-[360px] border-r border-neutral-200 overflow-hidden">
-            <PaginatorPanel
-              content={content}
-              selectedFormat={layoutFormat}
-              onFormatChange={setLayoutFormat}
-              fullBookPreview={fullBookPreview}
-              onFullBookPreviewChange={setFullBookPreview}
-              previewPageCount={previewPageCount}
-              onPreviewPageCountChange={setPreviewPageCount}
-              activePresetName={activePresetName}
-              onActivePresetNameChange={setActivePresetName}
-              assets={paginatorAssets}
-              onImportAssets={handlePaginatorAssetImport}
-              onRemoveAsset={removePaginatorAsset}
-              onCompilePreview={buildCompiledPaginatorPreview}
-            />
-          </div>
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <PreviewPanel
-              content={previewContent}
-              layoutFormat={layoutFormat}
-              fullBookPreview={fullBookPreview}
-              previewPageCount={previewPageCount}
-              activePresetName={activePresetName}
-            />
-          </div>
-        </div>
-      );
-    }
-
-    // Default 3-panel workspace
     if (useStackedPanels) {
       return (
         <div className="h-full flex flex-col min-h-0">
@@ -415,24 +376,25 @@ export default function App() {
                 content={content}
                 onChange={setContent}
                 isDocumentLoaded={isDocumentLoaded}
-                onNewDocument={() => {
-                  setShowEditor(true);
-                  setDocumentName('');
-                  setContent('');
-                }}
+                onNewDocument={clearAndStartNewDocument}
                 onImportFile={handleImportFile}
+                editorFontSize={workspaceSettings.editorFontSize}
               />
             )}
             {stackedWorkspaceTab === 'preview' && (
               <PreviewPanel
-                content={content}
+                content={filteredContent}
                 layoutFormat={layoutFormat}
+                pageSize={pageSize}
                 fullBookPreview={fullBookPreview}
                 previewPageCount={previewPageCount}
                 activePresetName={activePresetName}
+                inspectorSettings={inspectorSettings}
               />
             )}
-            {stackedWorkspaceTab === 'inspector' && <InspectorPanel />}
+            {stackedWorkspaceTab === 'inspector' && (
+              <InspectorPanel settings={inspectorSettings} onChange={setInspectorSettings} />
+            )}
           </div>
         </div>
       );
@@ -440,43 +402,48 @@ export default function App() {
 
     return (
       <ResizablePanelGroup direction="horizontal">
-        {/* Editor */}
         <ResizablePanel defaultSize={25} minSize={20}>
           <EditorPanel
             content={content}
             onChange={setContent}
             isDocumentLoaded={isDocumentLoaded}
-            onNewDocument={() => {
-              setShowEditor(true);
-              setDocumentName('');
-              setContent('');
-            }}
+            onNewDocument={clearAndStartNewDocument}
             onImportFile={handleImportFile}
+            editorFontSize={workspaceSettings.editorFontSize}
           />
         </ResizablePanel>
 
         <ResizableHandle className="w-px bg-neutral-200" />
 
-        {/* Preview */}
         <ResizablePanel defaultSize={50} minSize={30}>
           <PreviewPanel
-            content={content}
+            content={filteredContent}
             layoutFormat={layoutFormat}
+            pageSize={pageSize}
             fullBookPreview={fullBookPreview}
             previewPageCount={previewPageCount}
             activePresetName={activePresetName}
+            inspectorSettings={inspectorSettings}
           />
         </ResizablePanel>
 
         <ResizableHandle className="w-px bg-neutral-200" />
 
-        {/* Inspector */}
         <ResizablePanel defaultSize={25} minSize={20}>
-          <InspectorPanel />
+          <InspectorPanel settings={inspectorSettings} onChange={setInspectorSettings} />
         </ResizablePanel>
       </ResizablePanelGroup>
     );
   };
+
+  if (sharePayload) {
+    return (
+      <>
+        <ExportShareView payload={sharePayload} />
+        <Toaster />
+      </>
+    );
+  }
 
   if (isPhone) {
     return (
@@ -487,11 +454,7 @@ export default function App() {
           documentName={documentName}
           onDocumentNameChange={setDocumentName}
           onImportFile={handleImportFile}
-          onNewDocument={() => {
-            setShowEditor(true);
-            setDocumentName('');
-            setContent('');
-          }}
+          onNewDocument={clearAndStartNewDocument}
           onOpenTemplates={() => setActiveNav('templates')}
           onOpenSavedDocs={() => setActiveNav('saved')}
           onOpenSettings={() => setActiveNav('settings')}
@@ -502,9 +465,10 @@ export default function App() {
           open={exportModalOpen}
           onClose={() => setExportModalOpen(false)}
           content={content}
+          documentName={documentName}
           onReviewLayout={() => {
             setShowEditor(true);
-            setActiveNav('paginator');
+            setActiveNav('new');
           }}
         />
 
@@ -523,11 +487,7 @@ export default function App() {
           documentName={documentName}
           onDocumentNameChange={setDocumentName}
           onImportFile={handleImportFile}
-          onNewDocument={() => {
-            setShowEditor(true);
-            setDocumentName('');
-            setContent('');
-          }}
+          onNewDocument={clearAndStartNewDocument}
           onOpenTemplates={() => setActiveNav('templates')}
           onOpenSavedDocs={() => setActiveNav('saved')}
           onOpenSettings={() => setActiveNav('settings')}
@@ -538,9 +498,10 @@ export default function App() {
           open={exportModalOpen}
           onClose={() => setExportModalOpen(false)}
           content={content}
+          documentName={documentName}
           onReviewLayout={() => {
             setShowEditor(true);
-            setActiveNav('paginator');
+            setActiveNav('new');
           }}
         />
 
@@ -551,7 +512,6 @@ export default function App() {
 
   return (
     <div className="relative h-screen flex bg-white" style={{ fontFamily: 'Inter, sans-serif' }}>
-      {/* Left Sidebar */}
       <div className={`${!isDesktopLayout ? 'absolute inset-y-0 left-0 z-40' : 'relative'} transition-all duration-200 ease-out overflow-hidden ${isSidebarOpen ? 'w-64' : 'w-0'}`}>
         {isSidebarOpen && (
           <LeftSidebar
@@ -574,9 +534,7 @@ export default function App() {
         />
       )}
 
-      {/* Main Area */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* Top Bar */}
         <TopBar
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
@@ -585,26 +543,28 @@ export default function App() {
           documentName={documentName}
           onDocumentNameChange={setDocumentName}
           onExportClick={() => setExportModalOpen(true)}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
         />
 
-        {/* Main Content */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {renderMainContent()}
         </div>
       </div>
 
-      {/* Export Modal */}
       <ExportModal
         open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
         content={content}
+        documentName={documentName}
         onReviewLayout={() => {
           setShowEditor(true);
-          setActiveNav('paginator');
+          setActiveNav('new');
         }}
       />
 
-      {/* Toast Notifications */}
       <Toaster />
     </div>
   );

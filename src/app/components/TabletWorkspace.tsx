@@ -24,10 +24,11 @@ import { SettingsPanel } from './SettingsPanel';
 import { TemplateGrid } from './TemplateGrid';
 import { analyzeDocument } from '../lib/preflight';
 import { toast } from 'sonner';
+import { markdownUrlTransform } from '../lib/markdown';
 
 type TabletMode = 'edit' | 'preview' | 'layout' | 'export';
 type UtilityView = 'none' | 'templates' | 'saved' | 'settings';
-type LandscapeSheet = 'none' | 'paginator' | 'templates' | 'preflight';
+type LandscapeSheet = 'none' | 'layout' | 'templates' | 'preflight';
 type LandscapeFocus = 'editor' | 'split' | 'preview';
 
 interface TabletWorkspaceProps {
@@ -284,7 +285,7 @@ export function TabletWorkspace({
                   }}
                 >
                   <div className="prose prose-sm max-w-none text-neutral-700">
-                    {hasContent ? <ReactMarkdown>{content}</ReactMarkdown> : <p className="text-sm text-neutral-500">Preview will appear here as content is added.</p>}
+                    {hasContent ? <ReactMarkdown urlTransform={markdownUrlTransform}>{content}</ReactMarkdown> : <p className="text-sm text-neutral-500">Preview will appear here as content is added.</p>}
                   </div>
                   {showMargins && <div className="pointer-events-none absolute inset-0 rounded-lg border-[18px] border-neutral-100" />}
                   {activePreviewPage === page && (
@@ -402,15 +403,14 @@ export function TabletWorkspace({
                 <button
                   key={issue.id}
                   type="button"
-                  disabled
-                  title="Jump links coming soon"
-                  className="w-full rounded-md border border-neutral-200 bg-white p-3 text-left opacity-70 cursor-not-allowed"
+                  onClick={() => toast.info(issue.title)}
+                  className="w-full rounded-md border border-neutral-200 bg-white p-3 text-left hover:border-neutral-300 hover:bg-neutral-50"
                 >
                   <div className="flex items-center gap-2 text-sm font-medium text-neutral-800">
                     <AlertTriangle className="h-4 w-4 text-amber-600" />
                     {issue.title}
                   </div>
-                  <p className="mt-1 text-xs text-neutral-600">{issue.text} Jump links coming soon.</p>
+                  <p className="mt-1 text-xs text-neutral-600">{issue.text}</p>
                 </button>
               ))}
             </div>
@@ -421,7 +421,7 @@ export function TabletWorkspace({
 
     return (
       <div className="space-y-4 p-4">
-        <h3 className="text-sm font-semibold text-neutral-900">Paginator</h3>
+        <h3 className="text-sm font-semibold text-neutral-900">Layout</h3>
         <div className="space-y-3">
           <label className="text-xs uppercase tracking-wide text-neutral-500">Format</label>
           <div className="grid grid-cols-2 gap-2">
@@ -493,7 +493,7 @@ export function TabletWorkspace({
                 <div key={page} className="rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
                   <div className="text-xs text-neutral-400 mb-2">Page {page}</div>
                   <div className="prose prose-sm max-w-none text-neutral-700">
-                    {hasContent ? <ReactMarkdown>{content}</ReactMarkdown> : <p className="text-sm text-neutral-500">Preview will appear here.</p>}
+                    {hasContent ? <ReactMarkdown urlTransform={markdownUrlTransform}>{content}</ReactMarkdown> : <p className="text-sm text-neutral-500">Preview will appear here.</p>}
                   </div>
                 </div>
               ))}
@@ -503,9 +503,9 @@ export function TabletWorkspace({
       </div>
 
       <div className="grid grid-cols-3 gap-2 border-t border-neutral-200 bg-white p-2">
-        <Button variant="outline" size="sm" className="h-10" onClick={() => openLandscapeSheet('paginator')}>
+        <Button variant="outline" size="sm" className="h-10" onClick={() => openLandscapeSheet('layout')}>
           <LayoutTemplate className="h-4 w-4" />
-          Paginator
+          Layout
         </Button>
         <Button variant="outline" size="sm" className="h-10" onClick={() => openLandscapeSheet('templates')}>
           <BookTemplate className="h-4 w-4" />
@@ -521,7 +521,7 @@ export function TabletWorkspace({
         <SheetContent side="right" className="w-[420px] max-w-[90vw] p-0">
           <SheetHeader className="border-b border-neutral-200">
             <SheetTitle>
-              {landscapeSheet === 'paginator' ? 'Paginator' : landscapeSheet === 'templates' ? 'Templates' : 'Preflight'}
+              {landscapeSheet === 'layout' ? 'Layout' : landscapeSheet === 'templates' ? 'Templates' : 'Preflight'}
             </SheetTitle>
           </SheetHeader>
           <div className="h-full min-h-0 overflow-y-auto">{renderLandscapeSheetContent()}</div>

@@ -19,8 +19,8 @@ export function AboutPage() {
             <div>
               <h3 className="text-base font-semibold text-neutral-900">What it does</h3>
               <p className="text-sm text-neutral-600 mt-2">
-                DocKernel helps you write once and reflow content into print-friendly
-                formats like books, zines, reports, and catalogues.
+                DocKernel helps you edit, preview, and export print-friendly PDFs
+                from Markdown, plain text, and image pages.
               </p>
             </div>
 
@@ -30,7 +30,7 @@ export function AboutPage() {
               <h3 className="text-base font-semibold text-neutral-900">Core features</h3>
               <ul className="text-sm text-neutral-600 mt-2 list-disc pl-5 space-y-1">
                 <li>Live Markdown editing and preview</li>
-                <li>Paginator controls for layout and flow rules</li>
+                <li>Fixed-page document preview with zoom controls</li>
                 <li>Template-based document starts</li>
                 <li>Export presets for repeatable output</li>
               </ul>

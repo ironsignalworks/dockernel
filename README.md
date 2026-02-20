@@ -1,7 +1,7 @@
 
 # DocKernel
 
-DocKernel is a browser-native publishing UI built with React + Vite.
+DocKernel is a browser-native PDF editor built with React + Vite.
 
 ## Tech stack
 
@@ -67,3 +67,4 @@ This publishes the current `dist/` output to the `gh-pages` branch.
 
 - If GitHub Pages is not updating, confirm the Pages source is set to **GitHub Actions** and that the latest workflow run succeeded.
 - If you use both `main` and `gh-pages`, keep in mind only the configured Pages source branch/workflow controls what is live.
+- Paginator/asset-pipeline features were split from this app; this repo now focuses on editing, previewing, and exporting documents.

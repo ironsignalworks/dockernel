@@ -6,19 +6,23 @@ import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
-import { Download } from 'lucide-react';
+import { Download, Link2 } from 'lucide-react';
 import { analyzeDocument } from '../lib/preflight';
-import { openPdfPrintPreview } from '../lib/export';
+import { buildExportShareUrl, openPdfPrintPreview } from '../lib/export';
+import { splitContentIntoPages } from '../lib/paging';
+import ReactMarkdown from 'react-markdown';
+import { markdownUrlTransform } from '../lib/markdown';
 import { toast } from 'sonner';
 
 interface ExportModalProps {
   open: boolean;
   onClose: () => void;
   content: string;
+  documentName?: string;
   onReviewLayout: () => void;
 }
 
-export function ExportModal({ open, onClose, content, onReviewLayout }: ExportModalProps) {
+export function ExportModal({ open, onClose, content, documentName, onReviewLayout }: ExportModalProps) {
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
   const [quality, setQuality] = useState(85);
   const [compression, setCompression] = useState(true);
@@ -27,6 +31,7 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
   const preflight = analyzeDocument(content);
   const hasMajorIssues = preflight.severity === 'major';
   const estimatedPages = Math.max(1, Math.ceil(Math.max(content.trim().length, 1) / 1800));
+  const previewPages = splitContentIntoPages(content, 1800).slice(0, 4);
 
   useEffect(() => {
     if (!open) return;
@@ -64,14 +69,11 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Page previews */}
-                  {[1, 2, 3, 4].map((page) => (
-                    <div key={page} className="bg-white rounded shadow-sm p-8 aspect-[1/1.414]">
-                      <div className="text-xs text-neutral-400 mb-4">Page {page}</div>
-                      <div className="space-y-2">
-                        <div className="h-3 bg-neutral-200 rounded w-3/4" />
-                        <div className="h-3 bg-neutral-200 rounded w-full" />
-                        <div className="h-3 bg-neutral-200 rounded w-5/6" />
+                  {previewPages.map((page, index) => (
+                    <div key={`export-preview-${index + 1}`} className="bg-white rounded shadow-sm p-8 aspect-[1/1.414] overflow-hidden">
+                      <div className="text-xs text-neutral-400 mb-4">Page {index + 1}</div>
+                      <div className="prose prose-sm max-w-none text-neutral-700">
+                        <ReactMarkdown urlTransform={markdownUrlTransform}>{page}</ReactMarkdown>
                       </div>
                     </div>
                   ))}
@@ -176,11 +178,68 @@ export function ExportModal({ open, onClose, content, onReviewLayout }: ExportMo
 
             <div className="mt-6 space-y-2">
               <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={async () => {
+                  const shareUrl = buildExportShareUrl({
+                    title: (documentName?.trim() || 'DocKernel Export').slice(0, 120),
+                    content,
+                    options: {
+                      title: (documentName?.trim() || 'DocKernel Export').slice(0, 120),
+                      quality,
+                      compression,
+                      includeMetadata,
+                      watermark,
+                    },
+                    createdAt: new Date().toISOString(),
+                  });
+                  if (!shareUrl) {
+                    toast.error('Document is too large for URL export. Use Download PDF.');
+                    return;
+                  }
+                  try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    toast.success('Export link copied');
+                  } catch {
+                    toast.error('Could not copy export link');
+                  }
+                }}
+              >
+                <Link2 className="w-4 h-4" />
+                Copy export link
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => {
+                  const shareUrl = buildExportShareUrl({
+                    title: (documentName?.trim() || 'DocKernel Export').slice(0, 120),
+                    content,
+                    options: {
+                      title: (documentName?.trim() || 'DocKernel Export').slice(0, 120),
+                      quality,
+                      compression,
+                      includeMetadata,
+                      watermark,
+                    },
+                    createdAt: new Date().toISOString(),
+                  });
+                  if (!shareUrl) {
+                    toast.error('Document is too large for URL export. Use Download PDF.');
+                    return;
+                  }
+                  window.open(shareUrl, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                <Link2 className="w-4 h-4" />
+                Open online preview
+              </Button>
+              <Button
                 className="w-full gap-2 bg-neutral-900 hover:bg-neutral-800"
                 disabled={hasMajorIssues}
                 onClick={() => {
                   const ok = openPdfPrintPreview(content, {
-                    title: 'DocKernel Export',
+                    title: (documentName?.trim() || 'DocKernel Export').slice(0, 120),
                     quality,
                     compression,
                     includeMetadata,

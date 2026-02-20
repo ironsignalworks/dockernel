@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Minus, Plus, RotateCcw } from 'lucide-react';
 import { splitContentIntoPages } from '../lib/paging';
+import { markdownUrlTransform } from '../lib/markdown';
+import type { InspectorSettings } from './InspectorPanel';
 
 interface PreviewPanelProps {
   content: string;
@@ -9,6 +11,83 @@ interface PreviewPanelProps {
   fullBookPreview?: boolean;
   previewPageCount?: number;
   activePresetName?: string;
+  pageSize?: 'a4' | 'a5' | 'letter' | 'legal';
+  inspectorSettings?: InspectorSettings;
+}
+
+interface DraggableImageProps {
+  imageKey: string;
+  src: string;
+  alt: string;
+  scale: number;
+  position: { x: number; y: number };
+  onChange: (imageKey: string, next: { x: number; y: number }) => void;
+  onActivate: (imageKey: string) => void;
+  className?: string;
+  centerAnchor?: boolean;
+}
+
+function DraggableImage({
+  imageKey,
+  src,
+  alt,
+  scale,
+  position,
+  onChange,
+  onActivate,
+  className = 'max-w-full h-auto',
+  centerAnchor = false,
+}: DraggableImageProps) {
+  const dragStartRef = useRef<{ pointerX: number; pointerY: number; startX: number; startY: number } | null>(null);
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLImageElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    dragStartRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startX: position.x,
+      startY: position.y,
+    };
+    onActivate(imageKey);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (!dragStartRef.current) return;
+    event.preventDefault();
+    const dx = (event.clientX - dragStartRef.current.pointerX) / Math.max(scale, 0.35);
+    const dy = (event.clientY - dragStartRef.current.pointerY) / Math.max(scale, 0.35);
+    onChange(imageKey, {
+      x: dragStartRef.current.startX + dx,
+      y: dragStartRef.current.startY + dy,
+    });
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLImageElement>) => {
+    if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
+      (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+    }
+    dragStartRef.current = null;
+  };
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      draggable={false}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className={`${className} cursor-move select-none touch-none`}
+      style={{
+        transform: centerAnchor
+          ? `translate(-50%, -50%) translate(${position.x}px, ${position.y}px)`
+          : `translate(${position.x}px, ${position.y}px)`,
+      }}
+    />
+  );
 }
 
 export function PreviewPanel({
@@ -17,14 +96,22 @@ export function PreviewPanel({
   fullBookPreview = false,
   previewPageCount = 12,
   activePresetName = 'Default',
+  pageSize = 'a4',
+  inspectorSettings,
 }: PreviewPanelProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(0.8);
   const [showMargins, setShowMargins] = useState(true);
   const [spreadView, setSpreadView] = useState(false);
-  const [syncScroll, setSyncScroll] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [showRulers, setShowRulers] = useState(true);
+  const [snapToRuler, setSnapToRuler] = useState(true);
+  const [imagePositions, setImagePositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [activeImageKey, setActiveImageKey] = useState<string | null>(null);
+
+  const snapStepPx = 10;
+  const centerLockThresholdPx = 14;
 
   const clampZoom = (value: number) => Math.min(2.5, Math.max(0.35, value));
 
@@ -38,7 +125,13 @@ export function PreviewPanel({
       report: { width: 794, height: 1123 },
       custom: { width: 794, height: 1123 },
     };
-    const size = sizeMap[layoutFormat];
+    const pageSizeMap: Record<'a4' | 'a5' | 'letter' | 'legal', { width: number; height: number }> = {
+      a4: { width: 794, height: 1123 },
+      a5: { width: 560, height: 794 },
+      letter: { width: 816, height: 1056 },
+      legal: { width: 816, height: 1344 },
+    };
+    const size = layoutFormat === 'custom' ? pageSizeMap[pageSize] : sizeMap[layoutFormat];
     const pageWidth = spreadView ? size.width * 2 + 24 : size.width;
     const pageHeight = size.height;
     const padding = 80;
@@ -48,7 +141,7 @@ export function PreviewPanel({
       1.5,
     );
     setZoom(clampZoom(fitScale));
-  }, [layoutFormat, spreadView]);
+  }, [layoutFormat, pageSize, spreadView]);
 
   useEffect(() => {
     fitToViewport();
@@ -78,8 +171,14 @@ export function PreviewPanel({
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    // Trackpad pinch and modifier+wheel should zoom.
-    const shouldZoom = e.ctrlKey || e.metaKey;
+    // Modifier + wheel always zooms. Also support touchpad gesture-style deltas.
+    const modifierZoom = e.ctrlKey || e.metaKey || e.altKey;
+    const looksLikeTrackpadGesture =
+      e.deltaMode === 0 &&
+      Math.abs(e.deltaX) <= 8 &&
+      Math.abs(e.deltaY) > 0 &&
+      Math.abs(e.deltaY) <= 18;
+    const shouldZoom = modifierZoom || looksLikeTrackpadGesture;
     if (!shouldZoom) return;
 
     e.preventDefault();
@@ -95,7 +194,7 @@ export function PreviewPanel({
     zine: { width: 680, height: 960 },
     catalogue: { width: 860, height: 1123 },
     report: { width: 794, height: 1123 },
-    custom: { width: 794, height: 1123 },
+    custom: pageSize === 'a5' ? { width: 560, height: 794 } : pageSize === 'letter' ? { width: 816, height: 1056 } : pageSize === 'legal' ? { width: 816, height: 1344 } : { width: 794, height: 1123 },
   };
   const pageClassByFormat: Record<typeof layoutFormat, string> = {
     book: 'w-[794px] min-h-[1123px] p-16',
@@ -146,6 +245,26 @@ export function PreviewPanel({
   const goNext = () => {
     setCurrentPage((prev) => Math.min(maxPageIndex, prev + (spreadView ? 2 : 1)));
   };
+
+  const applySnap = useCallback(
+    (value: number) => (snapToRuler ? Math.round(value / snapStepPx) * snapStepPx : value),
+    [snapToRuler],
+  );
+
+  const updateImagePosition = useCallback(
+    (imageKey: string, next: { x: number; y: number }) => {
+      const centerLockedX = Math.abs(next.x) <= centerLockThresholdPx ? 0 : next.x;
+      const centerLockedY = Math.abs(next.y) <= centerLockThresholdPx ? 0 : next.y;
+      setImagePositions((prev) => ({
+        ...prev,
+        [imageKey]: {
+          x: applySnap(centerLockedX),
+          y: applySnap(centerLockedY),
+        },
+      }));
+    },
+    [applySnap],
+  );
 
   const parseSingleImageMarkdown = (pageMarkdown: string): string | null => {
     const trimmed = pageMarkdown.trim();
@@ -200,6 +319,27 @@ export function PreviewPanel({
             <div className="pl-1 min-w-[3.75rem] shrink-0 text-xs text-neutral-500 tabular-nums">
               {Math.round(zoom * 100)}%
             </div>
+            <button
+              type="button"
+              onClick={goPrev}
+              disabled={currentPage <= 0}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white text-neutral-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="min-w-[5rem] text-center text-xs text-neutral-500 tabular-nums">
+              {leftPageIndex + 1}{spreadView ? `-${rightPageIndex + 1}` : ''} / {pageChunks.length}
+            </span>
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={currentPage >= maxPageIndex}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white text-neutral-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Next page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -225,38 +365,25 @@ export function PreviewPanel({
             Spread view
           </button>
           <button
-            onClick={() => setSyncScroll((prev) => !prev)}
+            onClick={() => setShowRulers((prev) => !prev)}
             className={`h-8 px-3 text-xs rounded-md border shadow-sm transition-colors ${
-              syncScroll
+              showRulers
                 ? 'text-neutral-900 border-neutral-500 bg-neutral-100'
                 : 'text-neutral-600 border-neutral-300 hover:text-neutral-900 hover:border-neutral-400'
             }`}
           >
-            Sync scroll
+            Show rulers
           </button>
-          <div className="ml-auto inline-flex items-center gap-2">
-            <button
-              type="button"
-              onClick={goPrev}
-              disabled={currentPage <= 0}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white text-neutral-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Previous page"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="min-w-[5rem] text-center text-xs text-neutral-500 tabular-nums">
-              {leftPageIndex + 1}{spreadView ? `-${rightPageIndex + 1}` : ''} / {pageChunks.length}
-            </span>
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={currentPage >= maxPageIndex}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white text-neutral-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Next page"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            onClick={() => setSnapToRuler((prev) => !prev)}
+            className={`h-8 px-3 text-xs rounded-md border shadow-sm transition-colors ${
+              snapToRuler
+                ? 'text-neutral-900 border-neutral-500 bg-neutral-100'
+                : 'text-neutral-600 border-neutral-300 hover:text-neutral-900 hover:border-neutral-400'
+            }`}
+          >
+            Snap to ruler
+          </button>
         </div>
       </div>
 
@@ -273,8 +400,30 @@ export function PreviewPanel({
               width: `${zoomedFrameWidth}px`,
               height: `${zoomedFrameHeight}px`,
             }}
-            className="will-change-transform"
+            className="relative will-change-transform"
           >
+            {showRulers && (
+              <>
+                <div className="pointer-events-none absolute -top-6 left-0 right-0 h-6 border border-neutral-300 bg-white/90">
+                  {Array.from({ length: Math.floor(rawFrameWidth / snapStepPx) + 1 }, (_, i) => i * snapStepPx).map((tick) => (
+                    <div
+                      key={`outer-ruler-x-${tick}`}
+                      className={`absolute top-0 border-l ${tick % 100 === 0 ? 'h-6 border-neutral-500/50' : 'h-3 border-neutral-400/40'}`}
+                      style={{ left: `${tick * zoom}px` }}
+                    />
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute -left-6 top-0 bottom-0 w-6 border border-neutral-300 bg-white/90">
+                  {Array.from({ length: Math.floor(rawFrameHeight / snapStepPx) + 1 }, (_, i) => i * snapStepPx).map((tick) => (
+                    <div
+                      key={`outer-ruler-y-${tick}`}
+                      className={`absolute left-0 border-t ${tick % 100 === 0 ? 'w-6 border-neutral-500/50' : 'w-3 border-neutral-400/40'}`}
+                      style={{ top: `${tick * zoom}px` }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
             <div
               style={{
                 width: `${rawFrameWidth}px`,
@@ -287,6 +436,29 @@ export function PreviewPanel({
               {[leftPageIndex, ...(spreadView ? [rightPageIndex] : [])].map((pageIndex, idx) => {
                 const pageMarkdown = pageChunks[pageIndex] || '';
                 const singleImageUrl = parseSingleImageMarkdown(pageMarkdown);
+                const pageImagePrefix = `page-${pageIndex}`;
+                const singleImageKey = `${pageImagePrefix}:single:${singleImageUrl ?? ''}`;
+                const singleImagePosition = imagePositions[singleImageKey] ?? { x: 0, y: 0 };
+                const markdownComponents = {
+                  img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
+                    const src = props.src ?? '';
+                    const alt = props.alt ?? 'Imported image';
+                    const imageKey = `${pageImagePrefix}:markdown:${src}`;
+                    const position = imagePositions[imageKey] ?? { x: 0, y: 0 };
+                    return (
+                      <DraggableImage
+                        imageKey={imageKey}
+                        src={src}
+                        alt={alt}
+                        scale={zoom}
+                        position={position}
+                        onChange={updateImagePosition}
+                        onActivate={setActiveImageKey}
+                        className="max-w-full h-auto rounded"
+                      />
+                    );
+                  },
+                };
 
                 return (
                 <div
@@ -298,17 +470,35 @@ export function PreviewPanel({
                     className={
                       singleImageUrl ? 'h-full w-full' : contentClassByFormat[layoutFormat]
                     }
+                    style={
+                      singleImageUrl
+                        ? undefined
+                        : {
+                            fontFamily: inspectorSettings?.primaryFont ?? undefined,
+                            columnCount: inspectorSettings?.columns === 2 ? 2 : undefined,
+                            columnGap: inspectorSettings?.columns === 2 ? `${inspectorSettings.sectionGap}px` : undefined,
+                          }
+                    }
                   >
                     {hasContent ? (
                       singleImageUrl ? (
-                        <img
-                          src={singleImageUrl}
-                          alt={`Imported page ${pageIndex + 1}`}
-                          className="h-full w-full rounded object-contain"
-                          draggable={false}
-                        />
+                        <div className="relative h-full w-full overflow-hidden">
+                          <DraggableImage
+                            imageKey={singleImageKey}
+                            src={singleImageUrl}
+                            alt={`Imported page ${pageIndex + 1}`}
+                            scale={zoom}
+                            position={singleImagePosition}
+                            onChange={updateImagePosition}
+                            onActivate={setActiveImageKey}
+                            className={`absolute left-1/2 top-1/2 max-h-[94%] max-w-[94%] rounded object-contain ${activeImageKey === singleImageKey ? 'ring-2 ring-neutral-900' : ''}`}
+                            centerAnchor
+                          />
+                        </div>
                       ) : (
-                        <ReactMarkdown>{pageMarkdown || pageChunks[0] || ''}</ReactMarkdown>
+                        <ReactMarkdown urlTransform={markdownUrlTransform} components={markdownComponents}>
+                          {pageMarkdown || pageChunks[0] || ''}
+                        </ReactMarkdown>
                       )
                     ) : (
                       <div className="text-neutral-500 text-center mt-32 space-y-2">
@@ -324,7 +514,6 @@ export function PreviewPanel({
                   {showMargins && (
                     <div className="absolute inset-0 pointer-events-none border-[60px] border-neutral-50 rounded-lg" />
                   )}
-                  
                   {/* Page number */}
                   <div className="absolute bottom-8 right-16 text-xs text-neutral-400 flex items-center gap-2">
                     <span className="rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-500">
